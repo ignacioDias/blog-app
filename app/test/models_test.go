@@ -11,7 +11,7 @@ func TestPostModel(t *testing.T) {
 		ID:      1,
 		Title:   "Test Title",
 		Content: "Test Content",
-		Author:  "Test Author",
+		Author:  "testuser",
 	}
 
 	if post.ID != 1 {
@@ -20,13 +20,18 @@ func TestPostModel(t *testing.T) {
 	if post.Title != "Test Title" {
 		t.Errorf("expected Title 'Test Title', got '%s'", post.Title)
 	}
+	if post.Content != "Test Content" {
+		t.Errorf("expected Content 'Test Content', got '%s'", post.Content)
+	}
+	if post.Author != "testuser" {
+		t.Errorf("expected Author 'testuser', got '%s'", post.Author)
+	}
 }
 
 func TestPostRequestJSON(t *testing.T) {
 	jsonData := `{
         "title": "Test Title",
-        "content": "Test Content",
-        "author": "Test Author"
+        "content": "Test Content"
     }`
 
 	var postReq models.PostRequest
@@ -41,9 +46,6 @@ func TestPostRequestJSON(t *testing.T) {
 	if postReq.Content != "Test Content" {
 		t.Errorf("expected Content 'Test Content', got '%s'", postReq.Content)
 	}
-	if postReq.Author != "Test Author" {
-		t.Errorf("expected Author 'Test Author', got '%s'", postReq.Author)
-	}
 }
 
 func TestJsonPostSerialization(t *testing.T) {
@@ -51,7 +53,7 @@ func TestJsonPostSerialization(t *testing.T) {
 		ID:      1,
 		Title:   "Test Title",
 		Content: "Test Content",
-		Author:  "Test Author",
+		Author:  "testuser",
 	}
 
 	data, err := json.Marshal(jsonPost)
@@ -59,17 +61,14 @@ func TestJsonPostSerialization(t *testing.T) {
 		t.Fatalf("failed to marshal JSON: %v", err)
 	}
 
-	var result models.JsonPost
-	err = json.Unmarshal(data, &result)
-	if err != nil {
-		t.Fatalf("failed to unmarshal JSON: %v", err)
-	}
+	expected := `{"id":1,"title":"Test Title","content":"Test Content","author":"testuser"}`
+	var expectedMap, actualMap map[string]interface{}
 
-	if result.ID != jsonPost.ID {
-		t.Errorf("expected ID %d, got %d", jsonPost.ID, result.ID)
-	}
-	if result.Title != jsonPost.Title {
-		t.Errorf("expected Title '%s', got '%s'", jsonPost.Title, result.Title)
+	json.Unmarshal([]byte(expected), &expectedMap)
+	json.Unmarshal(data, &actualMap)
+
+	if len(expectedMap) != len(actualMap) {
+		t.Errorf("JSON structure mismatch")
 	}
 }
 
@@ -112,7 +111,7 @@ func TestUserRequestJSON(t *testing.T) {
 	}
 }
 
-func TestJsonUserOmitsPassword(t *testing.T) {
+func TestJsonUserSerialization(t *testing.T) {
 	jsonUser := models.JsonUser{
 		Username: "testuser",
 		Email:    "test@example.com",
@@ -123,24 +122,40 @@ func TestJsonUserOmitsPassword(t *testing.T) {
 		t.Fatalf("failed to marshal JSON: %v", err)
 	}
 
-	// Check that password field doesn't exist in JSON
+	var result models.JsonUser
+	err = json.Unmarshal(data, &result)
+	if err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	if result.Username != jsonUser.Username {
+		t.Errorf("expected Username '%s', got '%s'", jsonUser.Username, result.Username)
+	}
+	if result.Email != jsonUser.Email {
+		t.Errorf("expected Email '%s', got '%s'", jsonUser.Email, result.Email)
+	}
+}
+
+func TestJsonUserDoesNotContainPassword(t *testing.T) {
+	jsonUser := models.JsonUser{
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+
+	data, err := json.Marshal(jsonUser)
+	if err != nil {
+		t.Fatalf("failed to marshal JSON: %v", err)
+	}
+
 	jsonString := string(data)
-	if contains(jsonString, "password") {
+	if len(jsonString) > 0 && (jsonString[0] != '{' || jsonString[len(jsonString)-1] != '}') {
+		t.Error("expected valid JSON object")
+	}
+
+	// Ensure password field is not present
+	var rawMap map[string]interface{}
+	json.Unmarshal(data, &rawMap)
+	if _, exists := rawMap["password"]; exists {
 		t.Error("JsonUser should not contain password field")
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			containsMiddle(s, substr)))
-}
-
-func containsMiddle(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

@@ -207,3 +207,19 @@ func (a *App) GetProfileHandler() http.HandlerFunc {
 
 	}
 }
+
+func (a *App) FollowHandler() http.HandlerFunc {
+	return nil
+}
+
+func (a *App) UnfollowHandler() http.HandlerFunc {
+	return nil
+}
+
+func (a *App) GetFollowersHandler() http.HandlerFunc {
+	return nil
+}
+
+func (a *App) GetFollowingHandler() http.HandlerFunc {
+	return nil
+}
