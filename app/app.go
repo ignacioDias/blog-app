@@ -24,7 +24,7 @@ func (a *App) initRoutes() {
 	a.Router.HandleFunc("/api/posts/{post_id}", a.GetPostHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/posts/{post_id}", a.AuthMiddleware(a.UpdatePostHandler())).Methods("PATCH")
 	a.Router.HandleFunc("/api/posts/{post_id}", a.AuthMiddleware(a.DeletePostHandler())).Methods("DELETE")
-	a.Router.HandleFunc("/api/{username}", a.GetProfileHandler()).Methods("GET")
+	a.Router.HandleFunc("/api/users/{username}", a.GetUserByUsernameHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/{username}/following", a.GetFollowingHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/{username}/followers", a.GetFollowersHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/{username}/posts", a.GetPostsByUserHandler()).Methods("GET")
@@ -32,4 +32,7 @@ func (a *App) initRoutes() {
 	a.Router.HandleFunc("/api/login", a.LoginHandler()).Methods("POST")
 	a.Router.HandleFunc("/api/follow/{username}", a.AuthMiddleware(a.FollowHandler())).Methods("POST")
 	a.Router.HandleFunc("/api/unfollow/{username}", a.AuthMiddleware(a.UnfollowHandler())).Methods("DELETE")
+	a.Router.HandleFunc("/api/{username}", a.GetProfileHandler()).Methods("GET")
+	a.Router.HandleFunc("/api/{username}", a.AuthMiddleware(a.CreateProfileHandler())).Methods("POST")
+	a.Router.HandleFunc("/api/{username}", a.AuthMiddleware(a.UpdateProfileHandler())).Methods("PATCH")
 }

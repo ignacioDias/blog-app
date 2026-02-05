@@ -68,7 +68,8 @@ func (a *App) UpdatePostHandler() http.HandlerFunc {
 			sendResponse(w, r, map[string]string{"error": fmt.Sprintf("Invalid ID %s", id)}, http.StatusBadRequest)
 			return
 		}
-		p := &models.Post{
+
+		p := &models.Post{ //TODO: CHECK IF EMPTY -> USE ORIGINAL BODY
 			ID:      idAsNumber,
 			Title:   req.Title,
 			Author:  username,
@@ -220,7 +221,7 @@ func (a *App) LoginHandler() http.HandlerFunc {
 	}
 }
 
-func (a *App) GetProfileHandler() http.HandlerFunc { //TODO: CHANGE FOR PROFILE TABLE
+func (a *App) GetUserByUsernameHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		username := vars["username"]
@@ -359,5 +360,26 @@ func (a *App) GetFollowingHandler() http.HandlerFunc {
 		}
 
 		sendResponse(w, r, users, http.StatusOK)
+	}
+}
+func (a *App) GetProfileHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		username := vars["username"]
+
+		if username == "" {
+			sendResponse(w, r, map[string]string{"error": "Username required"}, http.StatusBadRequest)
+			return
+		}
+
+		profile, err := a.DB.GetProfile(username)
+
+		if err != nil {
+			log.Printf("Cannot get profile from DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to get profile details"}, http.StatusInternalServerError)
+			return
+		}
+
+		sendResponse(w, r, mapProfileToJson(profile), http.StatusOK)
 	}
 }

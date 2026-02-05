@@ -23,6 +23,7 @@ type PostDB interface {
 	Removefollow(f *models.UserFollow) error
 	GetFollowers(username string) ([]string, error)
 	GetFollowings(username string) ([]string, error)
+	GetProfile(username string) (*models.Profile, error)
 }
 type DB struct {
 	db *sqlx.DB

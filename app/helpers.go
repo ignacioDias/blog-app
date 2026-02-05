@@ -47,3 +47,11 @@ func mapFollowToJson(f *models.UserFollow) models.JsonUserFollow {
 		FollowedUsername: f.FollowedUsername,
 	}
 }
+
+func mapProfileToJson(f *models.Profile) models.JsonProfile {
+	return models.JsonProfile{
+		Username:       f.Username,
+		Description:    f.Description,
+		ProfilePicture: f.ProfilePicture,
+	}
+}

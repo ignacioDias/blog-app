@@ -23,6 +23,13 @@ const createSchema = `
 		FOREIGN KEY (followed_username) REFERENCES users(username) ON DELETE CASCADE,
 		CHECK (follower_username <> followed_username)
 	);
+	CREATE TABLE IF NOT EXISTS profiles
+	(
+		username TEXT PRIMARY KEY,
+		description TEXT,
+		profile_picture TEXT,
+		FOREIGN KEY (username) REFERENCES users(username) ON DELETE CASCADE
+	);
 	`
 
 var insertPostSchema = `INSERT INTO posts(title, content, author) VALUES($1, $2, $3) RETURNING id`
@@ -36,3 +43,5 @@ var removeFollowSchema = `DELETE FROM user_follows WHERE follower_username = $1 
 var getFollowersSchema = `SELECT follower_username FROM user_follows WHERE followed_username = $1`
 
 var getFollowingSchema = `SELECT followed_username FROM user_follows WHERE follower_username = $1`
+
+var getProfileSchema = `SELECT * FROM profiles WHERE username = $1`

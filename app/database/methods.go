@@ -158,3 +158,12 @@ func (d *DB) GetFollowings(username string) ([]string, error) {
 
 	return following, nil
 }
+
+func (d *DB) GetProfile(username string) (*models.Profile, error) {
+	profile := &models.Profile{}
+	err := d.db.Get(profile, getProfileSchema, username)
+	if err != nil {
+		return nil, err
+	}
+	return profile, nil
+}

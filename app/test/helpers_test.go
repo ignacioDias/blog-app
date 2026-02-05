@@ -68,7 +68,7 @@ func TestMapUserToJson(t *testing.T) {
 	}
 	a := setupTestApp(mockDB)
 
-	req, err := http.NewRequest("GET", "/api/testuser", nil)
+	req, err := http.NewRequest("GET", "/api/users/testuser", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

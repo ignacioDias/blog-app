@@ -186,6 +186,17 @@ func (m *MockDB) GetFollowings(username string) ([]string, error) {
 	return following, nil
 }
 
+func (m *MockDB) GetProfile(username string) (*models.Profile, error) {
+	if m.shouldFailGetUser {
+		return nil, errors.New("mock get profile error")
+	}
+	return &models.Profile{
+		Username:       username,
+		Description:    "Test description",
+		ProfilePicture: "test.jpg",
+	}, nil
+}
+
 func setupTestApp(mockDB *MockDB) *app.App {
 	a := app.New()
 	a.DB = mockDB
