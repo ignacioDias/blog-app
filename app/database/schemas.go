@@ -36,5 +36,3 @@ var removeFollowSchema = `DELETE FROM user_follows WHERE follower_username = $1 
 var getFollowersSchema = `SELECT follower_username FROM user_follows WHERE followed_username = $1`
 
 var getFollowingSchema = `SELECT followed_username FROM user_follows WHERE follower_username = $1`
-
-var checkFollowSchema = `SELECT EXISTS(SELECT 1 FROM user_follows WHERE follower_username = $1 AND followed_username = $2)`

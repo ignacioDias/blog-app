@@ -20,7 +20,9 @@ type PostDB interface {
 	LoginUser(p *models.User) (*models.User, error)
 	GetUserByUsername(username string) (*models.User, error)
 	CreateFollow(f *models.UserFollow) error
-	removefollow(f *models.UserFollow) error
+	Removefollow(f *models.UserFollow) error
+	GetFollowers(username string) ([]string, error)
+	GetFollowings(username string) ([]string, error)
 }
 type DB struct {
 	db *sqlx.DB

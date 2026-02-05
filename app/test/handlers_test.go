@@ -16,20 +16,23 @@ import (
 
 // MockDB implements database.PostDB interface for testing
 type MockDB struct {
-	posts []*models.Post
-	users []*models.User
+	posts   []*models.Post
+	users   []*models.User
+	follows []*models.UserFollow
 	// Control error behavior
-	shouldFailCreate     bool
-	shouldFailUpdate     bool
-	shouldFailGet        bool
-	shouldFailGetByUser  bool
-	shouldFailDelete     bool
-	shouldFailRegister   bool
-	shouldFailLogin      bool
-	shouldFailGetUser    bool
-	loginReturnUser      *models.User
-	getByUserReturnPosts []*models.Post
-	getUserReturnUser    *models.User
+	shouldFailCreate       bool
+	shouldFailUpdate       bool
+	shouldFailGet          bool
+	shouldFailGetByUser    bool
+	shouldFailDelete       bool
+	shouldFailRegister     bool
+	shouldFailLogin        bool
+	shouldFailGetUser      bool
+	shouldFailCreateFollow bool
+	shouldFailRemoveFollow bool
+	loginReturnUser        *models.User
+	getByUserReturnPosts   []*models.Post
+	getUserReturnUser      *models.User
 }
 
 func (m *MockDB) Open() error {
@@ -136,6 +139,53 @@ func (m *MockDB) GetUserByUsername(username string) (*models.User, error) {
 	return nil, errors.New("user not found")
 }
 
+func (m *MockDB) CreateFollow(f *models.UserFollow) error {
+	if m.shouldFailCreateFollow {
+		return errors.New("mock create follow error")
+	}
+	m.follows = append(m.follows, f)
+	return nil
+}
+
+func (m *MockDB) Removefollow(f *models.UserFollow) error {
+	if m.shouldFailRemoveFollow {
+		return errors.New("mock remove follow error")
+	}
+	for i, follow := range m.follows {
+		if follow.FollowerUsername == f.FollowerUsername && follow.FollowedUsername == f.FollowedUsername {
+			m.follows = append(m.follows[:i], m.follows[i+1:]...)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (m *MockDB) GetFollowers(username string) ([]string, error) {
+	if m.shouldFailGetUser {
+		return nil, errors.New("mock get followers error")
+	}
+	var followers []string
+	for _, follow := range m.follows {
+		if follow.FollowedUsername == username {
+			followers = append(followers, follow.FollowerUsername)
+		}
+	}
+	return followers, nil
+}
+
+func (m *MockDB) GetFollowings(username string) ([]string, error) {
+	if m.shouldFailGetUser {
+		return nil, errors.New("mock get following error")
+	}
+	var following []string
+	for _, follow := range m.follows {
+		if follow.FollowerUsername == username {
+			following = append(following, follow.FollowedUsername)
+		}
+	}
+	return following, nil
+}
+
 func setupTestApp(mockDB *MockDB) *app.App {
 	a := app.New()
 	a.DB = mockDB
@@ -145,7 +195,7 @@ func setupTestApp(mockDB *MockDB) *app.App {
 func TestCreatePostHandler(t *testing.T) {
 	tests := []struct {
 		name           string
-		requestBody    interface{}
+		requestBody    any
 		withAuth       bool
 		username       string
 		mockShouldFail bool
@@ -766,6 +816,385 @@ func TestGetProfileHandler(t *testing.T) {
 
 			if status := rr.Code; status != tt.expectedStatus {
 				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+		})
+	}
+}
+func TestFollowHandler(t *testing.T) {
+	tests := []struct {
+		name                string
+		withAuth            bool
+		username            string
+		followedUser        string
+		mockShouldFail      bool
+		expectedStatus      int
+		expectedFollowCount int
+	}{
+		{
+			name:                "successful follow",
+			withAuth:            true,
+			username:            "user1",
+			followedUser:        "user2",
+			mockShouldFail:      false,
+			expectedStatus:      http.StatusOK,
+			expectedFollowCount: 1,
+		},
+		{
+			name:           "missing authorization",
+			withAuth:       false,
+			username:       "",
+			followedUser:   "user2",
+			mockShouldFail: false,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "database error",
+			withAuth:       true,
+			username:       "user1",
+			followedUser:   "user2",
+			mockShouldFail: true,
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{shouldFailCreateFollow: tt.mockShouldFail}
+			a := setupTestApp(mockDB)
+
+			req, err := http.NewRequest("POST", "/api/follow/"+tt.followedUser, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.withAuth {
+				ctx := context.WithValue(req.Context(), app.UsernameKey, tt.username)
+				req = req.WithContext(ctx)
+			}
+
+			req = mux.SetURLVars(req, map[string]string{"username": tt.followedUser})
+
+			rr := httptest.NewRecorder()
+			handler := a.FollowHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response models.JsonUserFollow
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
+
+				if response.FollowerUsername != tt.username {
+					t.Errorf("expected follower username %s, got %s", tt.username, response.FollowerUsername)
+				}
+
+				if response.FollowedUsername != tt.followedUser {
+					t.Errorf("expected followed username %s, got %s", tt.followedUser, response.FollowedUsername)
+				}
+
+				if len(mockDB.follows) != tt.expectedFollowCount {
+					t.Errorf("expected %d follows in database, got %d", tt.expectedFollowCount, len(mockDB.follows))
+				}
+			}
+		})
+	}
+}
+
+func TestUnfollowHandler(t *testing.T) {
+	tests := []struct {
+		name                string
+		withAuth            bool
+		username            string
+		unfollowedUser      string
+		mockShouldFail      bool
+		expectedStatus      int
+		initialFollows      []*models.UserFollow
+		expectedFollowCount int
+	}{
+		{
+			name:           "successful unfollow",
+			withAuth:       true,
+			username:       "user1",
+			unfollowedUser: "user2",
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+			initialFollows: []*models.UserFollow{
+				{FollowerUsername: "user1", FollowedUsername: "user2"},
+				{FollowerUsername: "user1", FollowedUsername: "user3"},
+			},
+			expectedFollowCount: 1,
+		},
+		{
+			name:           "missing authorization",
+			withAuth:       false,
+			username:       "",
+			unfollowedUser: "user2",
+			mockShouldFail: false,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "database error",
+			withAuth:       true,
+			username:       "user1",
+			unfollowedUser: "user2",
+			mockShouldFail: true,
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "unfollow non-existent follow",
+			withAuth:       true,
+			username:       "user1",
+			unfollowedUser: "user5",
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+			initialFollows: []*models.UserFollow{
+				{FollowerUsername: "user1", FollowedUsername: "user2"},
+			},
+			expectedFollowCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{
+				shouldFailRemoveFollow: tt.mockShouldFail,
+				follows:                tt.initialFollows,
+			}
+			a := setupTestApp(mockDB)
+
+			req, err := http.NewRequest("DELETE", "/api/follow/"+tt.unfollowedUser, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.withAuth {
+				ctx := context.WithValue(req.Context(), app.UsernameKey, tt.username)
+				req = req.WithContext(ctx)
+			}
+
+			req = mux.SetURLVars(req, map[string]string{"username": tt.unfollowedUser})
+
+			rr := httptest.NewRecorder()
+			handler := a.UnfollowHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response models.JsonUserFollow
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
+
+				if response.FollowerUsername != tt.username {
+					t.Errorf("expected follower username %s, got %s", tt.username, response.FollowerUsername)
+				}
+
+				if response.FollowedUsername != tt.unfollowedUser {
+					t.Errorf("expected followed username %s, got %s", tt.unfollowedUser, response.FollowedUsername)
+				}
+
+				if tt.initialFollows != nil && len(mockDB.follows) != tt.expectedFollowCount {
+					t.Errorf("expected %d follows remaining in database, got %d", tt.expectedFollowCount, len(mockDB.follows))
+				}
+			}
+		})
+	}
+}
+
+func TestGetFollowersHandler(t *testing.T) {
+	tests := []struct {
+		name           string
+		username       string
+		initialFollows []*models.UserFollow
+		initialUsers   []*models.User
+		mockShouldFail bool
+		expectedStatus int
+		expectedCount  int
+	}{
+		{
+			name:     "successful get followers",
+			username: "user1",
+			initialFollows: []*models.UserFollow{
+				{FollowerUsername: "user2", FollowedUsername: "user1"},
+				{FollowerUsername: "user3", FollowedUsername: "user1"},
+			},
+			initialUsers: []*models.User{
+				{Username: "user2", Email: "user2@example.com"},
+				{Username: "user3", Email: "user3@example.com"},
+			},
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+			expectedCount:  2,
+		},
+		{
+			name:           "no followers",
+			username:       "user1",
+			initialFollows: []*models.UserFollow{},
+			initialUsers:   []*models.User{},
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+			expectedCount:  0,
+		},
+		{
+			name:           "database error on GetFollowers",
+			username:       "user1",
+			initialFollows: []*models.UserFollow{},
+			initialUsers:   []*models.User{},
+			mockShouldFail: true,
+			expectedStatus: http.StatusInternalServerError,
+			expectedCount:  0,
+		},
+		{
+			name:     "database error on GetUserByUsername",
+			username: "user1",
+			initialFollows: []*models.UserFollow{
+				{FollowerUsername: "user2", FollowedUsername: "user1"},
+			},
+			initialUsers:   []*models.User{},
+			mockShouldFail: false,
+			expectedStatus: http.StatusInternalServerError,
+			expectedCount:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{
+				follows:           tt.initialFollows,
+				users:             tt.initialUsers,
+				shouldFailGetUser: tt.mockShouldFail,
+			}
+			a := setupTestApp(mockDB)
+
+			req, err := http.NewRequest("GET", "/api/"+tt.username+"/followers", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			req = mux.SetURLVars(req, map[string]string{"username": tt.username})
+
+			rr := httptest.NewRecorder()
+			handler := a.GetFollowersHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response []models.JsonUser
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
+
+				if len(response) != tt.expectedCount {
+					t.Errorf("expected %d followers, got %d", tt.expectedCount, len(response))
+				}
+			}
+		})
+	}
+}
+
+func TestGetFollowingHandler(t *testing.T) {
+	tests := []struct {
+		name           string
+		username       string
+		initialFollows []*models.UserFollow
+		initialUsers   []*models.User
+		mockShouldFail bool
+		expectedStatus int
+		expectedCount  int
+	}{
+		{
+			name:     "successful get following",
+			username: "user1",
+			initialFollows: []*models.UserFollow{
+				{FollowerUsername: "user1", FollowedUsername: "user2"},
+				{FollowerUsername: "user1", FollowedUsername: "user3"},
+			},
+			initialUsers: []*models.User{
+				{Username: "user2", Email: "user2@example.com"},
+				{Username: "user3", Email: "user3@example.com"},
+			},
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+			expectedCount:  2,
+		},
+		{
+			name:           "no following",
+			username:       "user1",
+			initialFollows: []*models.UserFollow{},
+			initialUsers:   []*models.User{},
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+			expectedCount:  0,
+		},
+		{
+			name:           "database error on GetFollowing",
+			username:       "user1",
+			initialFollows: []*models.UserFollow{},
+			initialUsers:   []*models.User{},
+			mockShouldFail: true,
+			expectedStatus: http.StatusInternalServerError,
+			expectedCount:  0,
+		},
+		{
+			name:     "database error on GetUserByUsername",
+			username: "user1",
+			initialFollows: []*models.UserFollow{
+				{FollowerUsername: "user1", FollowedUsername: "user2"},
+			},
+			initialUsers:   []*models.User{},
+			mockShouldFail: false,
+			expectedStatus: http.StatusInternalServerError,
+			expectedCount:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{
+				follows:           tt.initialFollows,
+				users:             tt.initialUsers,
+				shouldFailGetUser: tt.mockShouldFail,
+			}
+			a := setupTestApp(mockDB)
+
+			req, err := http.NewRequest("GET", "/api/"+tt.username+"/following", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			req = mux.SetURLVars(req, map[string]string{"username": tt.username})
+
+			rr := httptest.NewRecorder()
+			handler := a.GetFollowingHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response []models.JsonUser
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
+
+				if len(response) != tt.expectedCount {
+					t.Errorf("expected %d following, got %d", tt.expectedCount, len(response))
+				}
 			}
 		})
 	}

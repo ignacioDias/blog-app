@@ -132,7 +132,29 @@ func (d *DB) CreateFollow(f *models.UserFollow) error {
 	return err
 }
 
-func (d *DB) removefollow(f *models.UserFollow) error {
+func (d *DB) Removefollow(f *models.UserFollow) error {
 	_, err := d.db.Exec(removeFollowSchema, f.FollowerUsername, f.FollowedUsername)
 	return err
+}
+
+func (d *DB) GetFollowers(username string) ([]string, error) {
+	var followers []string
+	err := d.db.Select(&followers, getFollowersSchema, username)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return followers, nil
+}
+
+func (d *DB) GetFollowings(username string) ([]string, error) {
+	var following []string
+	err := d.db.Select(&following, getFollowingSchema, username)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return following, nil
 }

@@ -220,7 +220,7 @@ func (a *App) LoginHandler() http.HandlerFunc {
 	}
 }
 
-func (a *App) GetProfileHandler() http.HandlerFunc {
+func (a *App) GetProfileHandler() http.HandlerFunc { //TODO: CHANGE FOR PROFILE TABLE
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		username := vars["username"]
@@ -246,6 +246,7 @@ func (a *App) FollowHandler() http.HandlerFunc {
 		username, ok := r.Context().Value(UsernameKey).(string)
 		if !ok {
 			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+			return
 		}
 		vars := mux.Vars(r)
 		followed := vars["username"]
@@ -257,7 +258,7 @@ func (a *App) FollowHandler() http.HandlerFunc {
 		err := a.DB.CreateFollow(f)
 		if err != nil {
 			log.Printf("Cannot save post in DB. err = %v\n", err)
-			sendResponse(w, r, map[string]string{"error": "Failed to create post"}, http.StatusInternalServerError)
+			sendResponse(w, r, map[string]string{"error": "Failed to create follow"}, http.StatusInternalServerError)
 			return
 		}
 
@@ -268,18 +269,95 @@ func (a *App) FollowHandler() http.HandlerFunc {
 
 func (a *App) UnfollowHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		username, ok := r.Context().Value(UsernameKey).(string)
+		if !ok {
+			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+			return
+		}
 
+		vars := mux.Vars(r)
+		unfollowed := vars["username"]
+
+		f := &models.UserFollow{
+			FollowerUsername: username,
+			FollowedUsername: unfollowed,
+		}
+
+		err := a.DB.Removefollow(f)
+
+		if err != nil {
+			log.Printf("Cannot remove follow in DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to remove follow"}, http.StatusInternalServerError)
+			return
+		}
+
+		resp := mapFollowToJson(f)
+		sendResponse(w, r, resp, http.StatusOK)
 	}
 }
 
 func (a *App) GetFollowersHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		username := vars["username"]
+		if username == "" {
+			sendResponse(w, r, map[string]string{"error": "Username required"}, http.StatusBadRequest)
+			return
+		}
+		usernames, err := a.DB.GetFollowers(username)
 
+		if err != nil {
+			log.Printf("Cannot get followers from DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to get followers"}, http.StatusInternalServerError)
+			return
+		}
+		users := make([]models.JsonUser, len(usernames))
+		for i, followerUsername := range usernames {
+			user, err := a.DB.GetUserByUsername(followerUsername)
+
+			if err != nil {
+				log.Printf("Cannot get follower from DB. err = %v\n", err)
+				sendResponse(w, r, map[string]string{"error": "Failed to get follower details"}, http.StatusInternalServerError)
+				return
+			}
+
+			users[i] = mapUserToJson(user)
+
+		}
+
+		sendResponse(w, r, users, http.StatusOK)
 	}
 }
 
 func (a *App) GetFollowingHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		username := vars["username"]
+		if username == "" {
+			sendResponse(w, r, map[string]string{"error": "Username required"}, http.StatusBadRequest)
+			return
+		}
+		usernames, err := a.DB.GetFollowings(username)
 
+		if err != nil {
+			log.Printf("Cannot get followings from DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to get followings"}, http.StatusInternalServerError)
+			return
+		}
+		users := make([]models.JsonUser, len(usernames))
+		for i, followingUsername := range usernames {
+			user, err := a.DB.GetUserByUsername(followingUsername)
+
+			if err != nil {
+				log.Printf("Cannot get following from DB. err = %v\n", err)
+				sendResponse(w, r, map[string]string{"error": "Failed to get following details"}, http.StatusInternalServerError)
+				return
+			}
+
+			users[i] = mapUserToJson(user)
+
+		}
+
+		sendResponse(w, r, users, http.StatusOK)
 	}
 }
