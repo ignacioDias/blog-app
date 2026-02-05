@@ -167,3 +167,27 @@ func (d *DB) GetProfile(username string) (*models.Profile, error) {
 	}
 	return profile, nil
 }
+
+func (d *DB) CreateProfile(p *models.Profile) error {
+	var profilePicture string
+	if p.ProfilePicture == "" {
+		profilePicture = "https://i.redd.it/j6mkb6p73h791.jpg"
+	} else {
+		profilePicture = p.ProfilePicture
+	}
+	_, err := d.db.Exec(insertProfileSchema, p.Username, p.Description, profilePicture)
+	return err
+}
+func (d *DB) UpdateProfile(p *models.Profile) error {
+	result, err := d.db.Exec(updateProfileSchema, p.Username, p.Description, p.ProfilePicture)
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}

@@ -69,11 +69,26 @@ func (a *App) UpdatePostHandler() http.HandlerFunc {
 			return
 		}
 
-		p := &models.Post{ //TODO: CHECK IF EMPTY -> USE ORIGINAL BODY
+		content := req.Content
+		title := req.Title
+
+		oldPost, err := a.DB.GetPost(idAsNumber)
+		if err != nil {
+			log.Printf("Cannot get post, err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to get post"}, http.StatusInternalServerError)
+			return
+		}
+		if req.Content == "" {
+			content = oldPost.Content
+		}
+		if req.Title == "" {
+			title = oldPost.Title
+		}
+		p := &models.Post{
 			ID:      idAsNumber,
-			Title:   req.Title,
+			Title:   title,
 			Author:  username,
-			Content: req.Content,
+			Content: content,
 		}
 
 		err = a.DB.UpdatePost(p)
@@ -124,7 +139,7 @@ func (a *App) GetPostsByUserHandler() http.HandlerFunc { //TODO: PAGINATION
 		posts, err := a.DB.GetPostsByUser(username)
 		if err != nil {
 			log.Printf("Cannot get posts, err = %v\n", err)
-			sendResponse(w, r, nil, http.StatusInternalServerError)
+			sendResponse(w, r, map[string]string{"error": "Failed to get posts"}, http.StatusInternalServerError)
 			return
 		}
 		var resp = make([]models.JsonPost, len(posts))
@@ -149,7 +164,7 @@ func (a *App) GetPostHandler() http.HandlerFunc {
 		post, err := a.DB.GetPost(idAsNumber)
 		if err != nil {
 			log.Printf("Cannot get post, err = %v\n", err)
-			sendResponse(w, r, nil, http.StatusInternalServerError)
+			sendResponse(w, r, map[string]string{"error": "Failed to get post"}, http.StatusInternalServerError)
 			return
 		}
 
@@ -163,7 +178,7 @@ func (a *App) RegisterUserHandler() http.HandlerFunc {
 		err := parse(w, r, &req)
 		if err != nil {
 			log.Printf("Cannot parse body. err = %v \n", err)
-			sendResponse(w, r, nil, http.StatusBadRequest)
+			sendResponse(w, r, map[string]string{"error": "Invalid request body"}, http.StatusBadRequest)
 			return
 		}
 		u := &models.User{
@@ -233,7 +248,7 @@ func (a *App) GetUserByUsernameHandler() http.HandlerFunc {
 		user, err := a.DB.GetUserByUsername(username)
 		if err != nil {
 			log.Printf("Cannot get user, err = %v\n", err)
-			sendResponse(w, r, nil, http.StatusInternalServerError)
+			sendResponse(w, r, map[string]string{"error": "Failed to get user"}, http.StatusInternalServerError)
 			return
 		}
 		resp := mapUserToJson(user)
@@ -258,7 +273,7 @@ func (a *App) FollowHandler() http.HandlerFunc {
 
 		err := a.DB.CreateFollow(f)
 		if err != nil {
-			log.Printf("Cannot save post in DB. err = %v\n", err)
+			log.Printf("Cannot save follow in DB. err = %v\n", err)
 			sendResponse(w, r, map[string]string{"error": "Failed to create follow"}, http.StatusInternalServerError)
 			return
 		}
@@ -381,5 +396,89 @@ func (a *App) GetProfileHandler() http.HandlerFunc {
 		}
 
 		sendResponse(w, r, mapProfileToJson(profile), http.StatusOK)
+	}
+}
+
+func (a *App) CreateProfileHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username, ok := r.Context().Value(UsernameKey).(string)
+		if !ok {
+			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+			return
+		}
+
+		req := models.ProfileRequest{}
+		err := parse(w, r, &req)
+		if err != nil {
+			log.Printf("Cannot parse body. err = %v \n", err)
+			sendResponse(w, r, map[string]string{"error": "Invalid request body"}, http.StatusBadRequest)
+			return
+		}
+
+		p := &models.Profile{
+			Username:       username,
+			Description:    req.Description,
+			ProfilePicture: req.ProfilePicture,
+		}
+
+		err = a.DB.CreateProfile(p)
+
+		if err != nil {
+			log.Printf("Cannot create profile. err = %v \n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to create profile"}, http.StatusInternalServerError)
+			return
+		}
+
+		jsonProfile := mapProfileToJson(p)
+		sendResponse(w, r, jsonProfile, http.StatusOK)
+	}
+}
+
+func (a *App) UpdateProfileHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username, ok := r.Context().Value(UsernameKey).(string)
+		if !ok {
+			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+			return
+		}
+
+		req := models.ProfileRequest{}
+		err := parse(w, r, &req)
+		if err != nil {
+			log.Printf("Cannot parse body. err = %v \n", err)
+			sendResponse(w, r, map[string]string{"error": "Invalid request body"}, http.StatusBadRequest)
+			return
+		}
+		currentProfile, err := a.DB.GetProfile(username)
+
+		if err != nil {
+			log.Printf("Cannot get profile. err = %v \n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to get profile"}, http.StatusInternalServerError)
+			return
+		}
+		description := req.Description
+		profilePicture := req.ProfilePicture
+		if req.Description == "" {
+			description = currentProfile.Description
+		}
+		if req.ProfilePicture == "" {
+			profilePicture = currentProfile.ProfilePicture
+		}
+		p := &models.Profile{
+			Username:       username,
+			Description:    description,
+			ProfilePicture: profilePicture,
+		}
+
+		err = a.DB.UpdateProfile(p)
+
+		if err != nil {
+			log.Printf("Cannot update profile. err = %v \n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to update profile"}, http.StatusInternalServerError)
+			return
+		}
+
+		jsonProfile := mapProfileToJson(p)
+		sendResponse(w, r, jsonProfile, http.StatusOK)
 	}
 }

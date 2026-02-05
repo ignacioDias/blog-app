@@ -44,4 +44,8 @@ var getFollowersSchema = `SELECT follower_username FROM user_follows WHERE follo
 
 var getFollowingSchema = `SELECT followed_username FROM user_follows WHERE follower_username = $1`
 
+var insertProfileSchema = `INSERT INTO profiles(username, description, profile_picture) VALUES($1, $2, $3)`
+
 var getProfileSchema = `SELECT * FROM profiles WHERE username = $1`
+
+var updateProfileSchema = `UPDATE profiles SET description = $2, profile_picture = $3 WHERE username = $1`

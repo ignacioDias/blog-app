@@ -24,6 +24,8 @@ type PostDB interface {
 	GetFollowers(username string) ([]string, error)
 	GetFollowings(username string) ([]string, error)
 	GetProfile(username string) (*models.Profile, error)
+	CreateProfile(p *models.Profile) error
+	UpdateProfile(p *models.Profile) error
 }
 type DB struct {
 	db *sqlx.DB

@@ -16,23 +16,27 @@ import (
 
 // MockDB implements database.PostDB interface for testing
 type MockDB struct {
-	posts   []*models.Post
-	users   []*models.User
-	follows []*models.UserFollow
+	posts    []*models.Post
+	users    []*models.User
+	follows  []*models.UserFollow
+	profiles map[string]*models.Profile
 	// Control error behavior
-	shouldFailCreate       bool
-	shouldFailUpdate       bool
-	shouldFailGet          bool
-	shouldFailGetByUser    bool
-	shouldFailDelete       bool
-	shouldFailRegister     bool
-	shouldFailLogin        bool
-	shouldFailGetUser      bool
-	shouldFailCreateFollow bool
-	shouldFailRemoveFollow bool
-	loginReturnUser        *models.User
-	getByUserReturnPosts   []*models.Post
-	getUserReturnUser      *models.User
+	shouldFailCreate        bool
+	shouldFailUpdate        bool
+	shouldFailGet           bool
+	shouldFailGetByUser     bool
+	shouldFailDelete        bool
+	shouldFailRegister      bool
+	shouldFailLogin         bool
+	shouldFailGetUser       bool
+	shouldFailCreateFollow  bool
+	shouldFailRemoveFollow  bool
+	shouldFailCreateProfile bool
+	shouldFailUpdateProfile bool
+	shouldFailGetProfile    bool
+	loginReturnUser         *models.User
+	getByUserReturnPosts    []*models.Post
+	getUserReturnUser       *models.User
 }
 
 func (m *MockDB) Open() error {
@@ -187,14 +191,44 @@ func (m *MockDB) GetFollowings(username string) ([]string, error) {
 }
 
 func (m *MockDB) GetProfile(username string) (*models.Profile, error) {
-	if m.shouldFailGetUser {
+	if m.shouldFailGetProfile {
 		return nil, errors.New("mock get profile error")
+	}
+	if m.profiles != nil {
+		if profile, exists := m.profiles[username]; exists {
+			return profile, nil
+		}
 	}
 	return &models.Profile{
 		Username:       username,
 		Description:    "Test description",
 		ProfilePicture: "test.jpg",
 	}, nil
+}
+
+func (m *MockDB) CreateProfile(p *models.Profile) error {
+	if m.shouldFailCreateProfile {
+		return errors.New("mock create profile error")
+	}
+	if m.profiles == nil {
+		m.profiles = make(map[string]*models.Profile)
+	}
+	m.profiles[p.Username] = p
+	return nil
+}
+
+func (m *MockDB) UpdateProfile(p *models.Profile) error {
+	if m.shouldFailUpdateProfile {
+		return errors.New("mock update profile error")
+	}
+	if m.profiles == nil {
+		m.profiles = make(map[string]*models.Profile)
+	}
+	if _, exists := m.profiles[p.Username]; !exists {
+		return errors.New("profile not found")
+	}
+	m.profiles[p.Username] = p
+	return nil
 }
 
 func setupTestApp(mockDB *MockDB) *app.App {
@@ -504,17 +538,18 @@ func TestDeletePostHandler(t *testing.T) {
 
 func TestUpdatePostHandler(t *testing.T) {
 	tests := []struct {
-		name           string
-		postID         string
-		requestBody    interface{}
-		withAuth       bool
-		username       string
-		mockPosts      []*models.Post
-		mockShouldFail bool
-		expectedStatus int
+		name                 string
+		postID               string
+		requestBody          interface{}
+		withAuth             bool
+		username             string
+		mockPosts            []*models.Post
+		mockShouldFailGet    bool
+		mockShouldFailUpdate bool
+		expectedStatus       int
 	}{
 		{
-			name:   "successful update",
+			name:   "successful update - all fields",
 			postID: "1",
 			requestBody: models.PostRequest{
 				Title:   "Updated Title",
@@ -525,8 +560,41 @@ func TestUpdatePostHandler(t *testing.T) {
 			mockPosts: []*models.Post{
 				{ID: 1, Title: "Original Title", Content: "Original Content", Author: "testuser"},
 			},
-			mockShouldFail: false,
-			expectedStatus: http.StatusOK,
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusOK,
+		},
+		{
+			name:   "successful update - partial fields (only title)",
+			postID: "1",
+			requestBody: models.PostRequest{
+				Title:   "Updated Title",
+				Content: "",
+			},
+			withAuth: true,
+			username: "testuser",
+			mockPosts: []*models.Post{
+				{ID: 1, Title: "Original Title", Content: "Original Content", Author: "testuser"},
+			},
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusOK,
+		},
+		{
+			name:   "successful update - partial fields (only content)",
+			postID: "1",
+			requestBody: models.PostRequest{
+				Title:   "",
+				Content: "Updated Content",
+			},
+			withAuth: true,
+			username: "testuser",
+			mockPosts: []*models.Post{
+				{ID: 1, Title: "Original Title", Content: "Original Content", Author: "testuser"},
+			},
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusOK,
 		},
 		{
 			name:   "missing authorization",
@@ -535,18 +603,20 @@ func TestUpdatePostHandler(t *testing.T) {
 				Title:   "Updated Title",
 				Content: "Updated Content",
 			},
-			withAuth:       false,
-			mockShouldFail: false,
-			expectedStatus: http.StatusUnauthorized,
+			withAuth:             false,
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusUnauthorized,
 		},
 		{
-			name:           "invalid request body",
-			postID:         "1",
-			requestBody:    "invalid json",
-			withAuth:       true,
-			username:       "testuser",
-			mockShouldFail: false,
-			expectedStatus: http.StatusBadRequest,
+			name:                 "invalid request body",
+			postID:               "1",
+			requestBody:          "invalid json",
+			withAuth:             true,
+			username:             "testuser",
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusBadRequest,
 		},
 		{
 			name:   "invalid post id",
@@ -555,22 +625,40 @@ func TestUpdatePostHandler(t *testing.T) {
 				Title:   "Updated Title",
 				Content: "Updated Content",
 			},
-			withAuth:       true,
-			username:       "testuser",
-			mockShouldFail: false,
-			expectedStatus: http.StatusBadRequest,
+			withAuth:             true,
+			username:             "testuser",
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusBadRequest,
 		},
 		{
-			name:   "database error",
+			name:   "database error on get post",
 			postID: "1",
 			requestBody: models.PostRequest{
 				Title:   "Updated Title",
 				Content: "Updated Content",
 			},
-			withAuth:       true,
-			username:       "testuser",
-			mockShouldFail: true,
-			expectedStatus: http.StatusInternalServerError,
+			withAuth:             true,
+			username:             "testuser",
+			mockShouldFailGet:    true,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusInternalServerError,
+		},
+		{
+			name:   "database error on update post",
+			postID: "1",
+			requestBody: models.PostRequest{
+				Title:   "Updated Title",
+				Content: "Updated Content",
+			},
+			withAuth: true,
+			username: "testuser",
+			mockPosts: []*models.Post{
+				{ID: 1, Title: "Original Title", Content: "Original Content", Author: "testuser"},
+			},
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: true,
+			expectedStatus:       http.StatusInternalServerError,
 		},
 	}
 
@@ -578,7 +666,8 @@ func TestUpdatePostHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := &MockDB{
 				posts:            tt.mockPosts,
-				shouldFailUpdate: tt.mockShouldFail,
+				shouldFailGet:    tt.mockShouldFailGet,
+				shouldFailUpdate: tt.mockShouldFailUpdate,
 			}
 			a := setupTestApp(mockDB)
 
@@ -618,6 +707,22 @@ func TestUpdatePostHandler(t *testing.T) {
 				err := json.NewDecoder(rr.Body).Decode(&response)
 				if err != nil {
 					t.Errorf("could not decode response: %v", err)
+				}
+
+				// Check if partial update worked correctly
+				reqParsed := tt.requestBody.(models.PostRequest)
+				if reqParsed.Title != "" && response.Title != reqParsed.Title {
+					t.Errorf("expected title %s, got %s", reqParsed.Title, response.Title)
+				}
+				if reqParsed.Content != "" && response.Content != reqParsed.Content {
+					t.Errorf("expected content %s, got %s", reqParsed.Content, response.Content)
+				}
+				// Check that empty fields preserved original values
+				if reqParsed.Title == "" && len(tt.mockPosts) > 0 && response.Title != tt.mockPosts[0].Title {
+					t.Errorf("expected title to be preserved as %s, got %s", tt.mockPosts[0].Title, response.Title)
+				}
+				if reqParsed.Content == "" && len(tt.mockPosts) > 0 && response.Content != tt.mockPosts[0].Content {
+					t.Errorf("expected content to be preserved as %s, got %s", tt.mockPosts[0].Content, response.Content)
 				}
 			}
 		})
@@ -783,24 +888,18 @@ func TestGetProfileHandler(t *testing.T) {
 	tests := []struct {
 		name           string
 		username       string
-		mockUser       *models.User
 		mockShouldFail bool
 		expectedStatus int
 	}{
 		{
-			name:     "successful get profile",
-			username: "testuser",
-			mockUser: &models.User{
-				Username: "testuser",
-				Email:    "test@example.com",
-			},
+			name:           "successful get profile",
+			username:       "testuser",
 			mockShouldFail: false,
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "database error",
 			username:       "testuser",
-			mockUser:       nil,
 			mockShouldFail: true,
 			expectedStatus: http.StatusInternalServerError,
 		},
@@ -809,8 +908,7 @@ func TestGetProfileHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDB := &MockDB{
-				getUserReturnUser: tt.mockUser,
-				shouldFailGetUser: tt.mockShouldFail,
+				shouldFailGetProfile: tt.mockShouldFail,
 			}
 			a := setupTestApp(mockDB)
 
@@ -1205,6 +1303,269 @@ func TestGetFollowingHandler(t *testing.T) {
 
 				if len(response) != tt.expectedCount {
 					t.Errorf("expected %d following, got %d", tt.expectedCount, len(response))
+				}
+			}
+		})
+	}
+}
+
+func TestCreateProfileHandler(t *testing.T) {
+	tests := []struct {
+		name           string
+		requestBody    interface{}
+		withAuth       bool
+		username       string
+		mockShouldFail bool
+		expectedStatus int
+	}{
+		{
+			name: "successful profile creation",
+			requestBody: models.ProfileRequest{
+				Description:    "Test description",
+				ProfilePicture: "test.jpg",
+			},
+			withAuth:       true,
+			username:       "testuser",
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "missing authorization",
+			requestBody: models.ProfileRequest{
+				Description:    "Test description",
+				ProfilePicture: "test.jpg",
+			},
+			withAuth:       false,
+			mockShouldFail: false,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "invalid request body",
+			requestBody:    "invalid json",
+			withAuth:       true,
+			username:       "testuser",
+			mockShouldFail: false,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "database error",
+			requestBody: models.ProfileRequest{
+				Description:    "Test description",
+				ProfilePicture: "test.jpg",
+			},
+			withAuth:       true,
+			username:       "testuser",
+			mockShouldFail: true,
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{shouldFailCreateProfile: tt.mockShouldFail}
+			a := setupTestApp(mockDB)
+
+			var reqBody []byte
+			var err error
+			if str, ok := tt.requestBody.(string); ok {
+				reqBody = []byte(str)
+			} else {
+				reqBody, err = json.Marshal(tt.requestBody)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req, err := http.NewRequest("POST", "/api/profile", bytes.NewBuffer(reqBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.withAuth {
+				ctx := context.WithValue(req.Context(), app.UsernameKey, tt.username)
+				req = req.WithContext(ctx)
+			}
+
+			rr := httptest.NewRecorder()
+			handler := a.CreateProfileHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response models.JsonProfile
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
+
+				if response.Username != tt.username {
+					t.Errorf("expected username %s, got %s", tt.username, response.Username)
+				}
+			}
+		})
+	}
+}
+
+func TestUpdateProfileHandler(t *testing.T) {
+	tests := []struct {
+		name                 string
+		requestBody          interface{}
+		withAuth             bool
+		username             string
+		existingProfile      *models.Profile
+		mockShouldFailGet    bool
+		mockShouldFailUpdate bool
+		expectedStatus       int
+	}{
+		{
+			name: "successful profile update - all fields",
+			requestBody: models.ProfileRequest{
+				Description:    "Updated description",
+				ProfilePicture: "updated.jpg",
+			},
+			withAuth: true,
+			username: "testuser",
+			existingProfile: &models.Profile{
+				Username:       "testuser",
+				Description:    "Old description",
+				ProfilePicture: "old.jpg",
+			},
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusOK,
+		},
+		{
+			name: "successful profile update - partial fields",
+			requestBody: models.ProfileRequest{
+				Description:    "Updated description",
+				ProfilePicture: "",
+			},
+			withAuth: true,
+			username: "testuser",
+			existingProfile: &models.Profile{
+				Username:       "testuser",
+				Description:    "Old description",
+				ProfilePicture: "old.jpg",
+			},
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusOK,
+		},
+		{
+			name: "missing authorization",
+			requestBody: models.ProfileRequest{
+				Description:    "Updated description",
+				ProfilePicture: "updated.jpg",
+			},
+			withAuth:             false,
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusUnauthorized,
+		},
+		{
+			name:                 "invalid request body",
+			requestBody:          "invalid json",
+			withAuth:             true,
+			username:             "testuser",
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusBadRequest,
+		},
+		{
+			name: "database error on get profile",
+			requestBody: models.ProfileRequest{
+				Description:    "Updated description",
+				ProfilePicture: "updated.jpg",
+			},
+			withAuth:             true,
+			username:             "testuser",
+			mockShouldFailGet:    true,
+			mockShouldFailUpdate: false,
+			expectedStatus:       http.StatusInternalServerError,
+		},
+		{
+			name: "database error on update profile",
+			requestBody: models.ProfileRequest{
+				Description:    "Updated description",
+				ProfilePicture: "updated.jpg",
+			},
+			withAuth: true,
+			username: "testuser",
+			existingProfile: &models.Profile{
+				Username:       "testuser",
+				Description:    "Old description",
+				ProfilePicture: "old.jpg",
+			},
+			mockShouldFailGet:    false,
+			mockShouldFailUpdate: true,
+			expectedStatus:       http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{
+				shouldFailGetProfile:    tt.mockShouldFailGet,
+				shouldFailUpdateProfile: tt.mockShouldFailUpdate,
+				profiles:                make(map[string]*models.Profile),
+			}
+
+			if tt.existingProfile != nil {
+				mockDB.profiles[tt.username] = tt.existingProfile
+			}
+
+			a := setupTestApp(mockDB)
+
+			var reqBody []byte
+			var err error
+			if str, ok := tt.requestBody.(string); ok {
+				reqBody = []byte(str)
+			} else {
+				reqBody, err = json.Marshal(tt.requestBody)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req, err := http.NewRequest("PATCH", "/api/profile", bytes.NewBuffer(reqBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.withAuth {
+				ctx := context.WithValue(req.Context(), app.UsernameKey, tt.username)
+				req = req.WithContext(ctx)
+			}
+
+			rr := httptest.NewRecorder()
+			handler := a.UpdateProfileHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response models.JsonProfile
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
+
+				if response.Username != tt.username {
+					t.Errorf("expected username %s, got %s", tt.username, response.Username)
+				}
+
+				// Check if partial update worked correctly
+				reqParsed := tt.requestBody.(models.ProfileRequest)
+				if reqParsed.Description != "" && response.Description != reqParsed.Description {
+					t.Errorf("expected description %s, got %s", reqParsed.Description, response.Description)
+				}
+				if reqParsed.Description == "" && tt.existingProfile != nil && response.Description != tt.existingProfile.Description {
+					t.Errorf("expected description to be preserved as %s, got %s", tt.existingProfile.Description, response.Description)
 				}
 			}
 		})
