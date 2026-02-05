@@ -13,8 +13,11 @@ type PostDB interface {
 	Close() error
 	CreatePost(p *models.Post) error
 	GetPostsByUser(author string) ([]*models.Post, error)
+	GetPost(id int64) (*models.Post, error)
+	DeletePost(id int64, username string) error
 	RegisterUser(p *models.User) error
 	LoginUser(p *models.User) (*models.User, error)
+	GetUserByUsername(username string) (*models.User, error)
 }
 
 type DB struct {

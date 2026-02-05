@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"postapi/app/models"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -49,8 +50,36 @@ func (a *App) CreatePostHandler() http.HandlerFunc {
 		sendResponse(w, r, resp, http.StatusOK)
 	}
 }
+func (a *App) UpdatePostHandler() http.HandlerFunc {
+	return nil
+}
+func (a *App) DeletePostHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		username, ok := r.Context().Value(UsernameKey).(string)
+		if !ok {
+			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+			return
+		}
+		vars := mux.Vars(r)
+		id := vars["post_id"]
+		idAsNumber, err := strconv.ParseInt(id, 10, 64)
 
-func (a *App) GetPostsByUserHandlder() http.HandlerFunc {
+		if err != nil {
+			sendResponse(w, r, map[string]string{"error": fmt.Sprintf("Invalid ID %s", id)}, http.StatusBadRequest)
+			return
+		}
+
+		err = a.DB.DeletePost(idAsNumber, username)
+		if err != nil {
+			log.Printf("Cannot delete post in DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to delete post"}, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (a *App) GetPostsByUserHandler() http.HandlerFunc { //TODO: PAGINATION
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		username := vars["username"]
@@ -72,6 +101,28 @@ func (a *App) GetPostsByUserHandlder() http.HandlerFunc {
 	}
 }
 
+func (a *App) GetPostHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id := vars["post_id"]
+
+		idAsNumber, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			sendResponse(w, r, map[string]string{"error": fmt.Sprintf("Invalid ID %s", id)}, http.StatusBadRequest)
+			return
+		}
+
+		post, err := a.DB.GetPost(idAsNumber)
+		if err != nil {
+			log.Printf("Cannot get post, err = %v\n", err)
+			sendResponse(w, r, nil, http.StatusInternalServerError)
+			return
+		}
+
+		resp := mapPostToJson(post)
+		sendResponse(w, r, resp, http.StatusOK)
+	}
+}
 func (a *App) RegisterUserHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := models.UserRequest{}
@@ -128,7 +179,7 @@ func (a *App) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		resp := map[string]interface{}{
+		resp := map[string]any{
 			"user":  mapUserToJson(user),
 			"token": tokenString,
 		}
@@ -137,16 +188,22 @@ func (a *App) LoginHandler() http.HandlerFunc {
 }
 
 func (a *App) GetProfileHandler() http.HandlerFunc {
-	return nil
-}
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		username := vars["username"]
 
-func (a *App) GetPostHandlder() http.HandlerFunc {
-	return nil
-}
+		if username == "" {
+			sendResponse(w, r, map[string]string{"error": "Username required"}, http.StatusBadRequest)
+			return
+		}
+		user, err := a.DB.GetUserByUsername(username)
+		if err != nil {
+			log.Printf("Cannot get user, err = %v\n", err)
+			sendResponse(w, r, nil, http.StatusInternalServerError)
+			return
+		}
+		resp := mapUserToJson(user)
+		sendResponse(w, r, resp, http.StatusOK)
 
-func (a *App) UpdatePostHandler() http.HandlerFunc {
-	return nil
-}
-func (a *App) DeletePostHandler() http.HandlerFunc {
-	return nil
+	}
 }

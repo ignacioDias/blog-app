@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"errors"
 	"net/mail"
 	"postapi/app/models"
@@ -67,5 +68,37 @@ func (d *DB) LoginUser(p *models.User) (*models.User, error) {
 		return nil, err
 	}
 	user.Password = ""
+	return user, nil
+}
+
+func (d *DB) GetPost(id int64) (*models.Post, error) {
+	post := &models.Post{}
+	err := d.db.Get(post, "SELECT * FROM posts WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	return post, nil
+}
+
+func (d *DB) DeletePost(id int64, username string) error {
+	result, err := d.db.Exec("DELETE FROM posts WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+func (d *DB) GetUserByUsername(username string) (*models.User, error) {
+	user := &models.User{}
+	err := d.db.Get(user, "SELECT * FROM users WHERE username = $1", username)
+	if err != nil {
+		return nil, err
+	}
 	return user, nil
 }
