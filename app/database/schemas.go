@@ -31,7 +31,7 @@ var insertUserSchema = `INSERT INTO users(username, email, password) VALUES($1, 
 
 var insertFollowSchema = `INSERT INTO user_follows (follower_username, followed_username) VALUES ($1, $2)`
 
-var deleteFollowSchema = `DELETE FROM user_follows WHERE follower_username = $1 AND followed_username = $2`
+var removeFollowSchema = `DELETE FROM user_follows WHERE follower_username = $1 AND followed_username = $2`
 
 var getFollowersSchema = `SELECT follower_username FROM user_follows WHERE followed_username = $1`
 

@@ -40,3 +40,10 @@ func mapUserToJson(u *models.User) models.JsonUser {
 		Email:    u.Email,
 	}
 }
+
+func mapFollowToJson(f *models.UserFollow) models.JsonUserFollow {
+	return models.JsonUserFollow{
+		FollowerUsername: f.FollowerUsername,
+		FollowedUsername: f.FollowedUsername,
+	}
+}

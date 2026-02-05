@@ -20,7 +20,6 @@ func New() *App {
 }
 
 func (a *App) initRoutes() {
-	a.Router.HandleFunc("/", a.IndexHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/posts", a.AuthMiddleware(a.CreatePostHandler())).Methods("POST")
 	a.Router.HandleFunc("/api/posts/{post_id}", a.GetPostHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/posts/{post_id}", a.AuthMiddleware(a.UpdatePostHandler())).Methods("PATCH")

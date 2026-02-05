@@ -20,6 +20,7 @@ type MockDB struct {
 	users []*models.User
 	// Control error behavior
 	shouldFailCreate     bool
+	shouldFailUpdate     bool
 	shouldFailGet        bool
 	shouldFailGetByUser  bool
 	shouldFailDelete     bool
@@ -46,6 +47,19 @@ func (m *MockDB) CreatePost(p *models.Post) error {
 	p.ID = int64(len(m.posts) + 1)
 	m.posts = append(m.posts, p)
 	return nil
+}
+
+func (m *MockDB) UpdatePost(p *models.Post) error {
+	if m.shouldFailUpdate {
+		return errors.New("mock update error")
+	}
+	for i, post := range m.posts {
+		if post.ID == p.ID && post.Author == p.Author {
+			m.posts[i] = p
+			return nil
+		}
+	}
+	return errors.New("post not found or unauthorized")
 }
 
 func (m *MockDB) GetPostsByUser(username string) ([]*models.Post, error) {
@@ -126,29 +140,6 @@ func setupTestApp(mockDB *MockDB) *app.App {
 	a := app.New()
 	a.DB = mockDB
 	return a
-}
-
-func TestIndexHandler(t *testing.T) {
-	mockDB := &MockDB{}
-	a := setupTestApp(mockDB)
-
-	req, err := http.NewRequest("GET", "/", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rr := httptest.NewRecorder()
-	handler := a.IndexHandler()
-	handler.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
-	}
-
-	expected := "Welcome to Post API"
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
-	}
 }
 
 func TestCreatePostHandler(t *testing.T) {
@@ -445,6 +436,128 @@ func TestDeletePostHandler(t *testing.T) {
 
 			if status := rr.Code; status != tt.expectedStatus {
 				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+		})
+	}
+}
+
+func TestUpdatePostHandler(t *testing.T) {
+	tests := []struct {
+		name           string
+		postID         string
+		requestBody    interface{}
+		withAuth       bool
+		username       string
+		mockPosts      []*models.Post
+		mockShouldFail bool
+		expectedStatus int
+	}{
+		{
+			name:   "successful update",
+			postID: "1",
+			requestBody: models.PostRequest{
+				Title:   "Updated Title",
+				Content: "Updated Content",
+			},
+			withAuth: true,
+			username: "testuser",
+			mockPosts: []*models.Post{
+				{ID: 1, Title: "Original Title", Content: "Original Content", Author: "testuser"},
+			},
+			mockShouldFail: false,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:   "missing authorization",
+			postID: "1",
+			requestBody: models.PostRequest{
+				Title:   "Updated Title",
+				Content: "Updated Content",
+			},
+			withAuth:       false,
+			mockShouldFail: false,
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:           "invalid request body",
+			postID:         "1",
+			requestBody:    "invalid json",
+			withAuth:       true,
+			username:       "testuser",
+			mockShouldFail: false,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "invalid post id",
+			postID: "invalid",
+			requestBody: models.PostRequest{
+				Title:   "Updated Title",
+				Content: "Updated Content",
+			},
+			withAuth:       true,
+			username:       "testuser",
+			mockShouldFail: false,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:   "database error",
+			postID: "1",
+			requestBody: models.PostRequest{
+				Title:   "Updated Title",
+				Content: "Updated Content",
+			},
+			withAuth:       true,
+			username:       "testuser",
+			mockShouldFail: true,
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockDB := &MockDB{
+				posts:            tt.mockPosts,
+				shouldFailUpdate: tt.mockShouldFail,
+			}
+			a := setupTestApp(mockDB)
+
+			var reqBody []byte
+			var err error
+			if str, ok := tt.requestBody.(string); ok {
+				reqBody = []byte(str)
+			} else {
+				reqBody, err = json.Marshal(tt.requestBody)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			req, err := http.NewRequest("PATCH", "/api/posts/"+tt.postID, bytes.NewBuffer(reqBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.withAuth {
+				ctx := context.WithValue(req.Context(), app.UsernameKey, tt.username)
+				req = req.WithContext(ctx)
+			}
+
+			req = mux.SetURLVars(req, map[string]string{"post_id": tt.postID})
+
+			rr := httptest.NewRecorder()
+			handler := a.UpdatePostHandler()
+			handler.ServeHTTP(rr, req)
+
+			if status := rr.Code; status != tt.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v", status, tt.expectedStatus)
+			}
+
+			if tt.expectedStatus == http.StatusOK {
+				var response models.JsonPost
+				err := json.NewDecoder(rr.Body).Decode(&response)
+				if err != nil {
+					t.Errorf("could not decode response: %v", err)
+				}
 			}
 		})
 	}

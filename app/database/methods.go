@@ -16,6 +16,30 @@ func (d *DB) CreatePost(p *models.Post) error {
 	err := d.db.QueryRow(insertPostSchema, p.Title, p.Content, p.Author).Scan(&p.ID)
 	return err
 }
+func (d *DB) UpdatePost(p *models.Post) error {
+	result, err := d.db.Exec(
+		`UPDATE posts
+		 SET title = $1, content = $2
+		 WHERE id = $3 AND author = $4`,
+		p.Title,
+		p.Content,
+		p.ID,
+		p.Author,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
 
 func (d *DB) GetPostsByUser(author string) ([]*models.Post, error) {
 	var posts []*models.Post
@@ -101,4 +125,14 @@ func (d *DB) GetUserByUsername(username string) (*models.User, error) {
 		return nil, err
 	}
 	return user, nil
+}
+
+func (d *DB) CreateFollow(f *models.UserFollow) error {
+	_, err := d.db.Exec(insertFollowSchema, f.FollowerUsername, f.FollowedUsername)
+	return err
+}
+
+func (d *DB) removefollow(f *models.UserFollow) error {
+	_, err := d.db.Exec(removeFollowSchema, f.FollowerUsername, f.FollowedUsername)
+	return err
 }

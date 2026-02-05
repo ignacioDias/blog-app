@@ -10,12 +10,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func (a *App) IndexHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Welcome to Post API")
-	}
-}
-
 func (a *App) CreatePostHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username, ok := r.Context().Value(UsernameKey).(string)
@@ -51,7 +45,46 @@ func (a *App) CreatePostHandler() http.HandlerFunc {
 	}
 }
 func (a *App) UpdatePostHandler() http.HandlerFunc {
-	return nil
+	return func(w http.ResponseWriter, r *http.Request) {
+		username, ok := r.Context().Value(UsernameKey).(string)
+		if !ok {
+			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+			return
+		}
+
+		req := models.PostRequest{}
+		err := parse(w, r, &req)
+
+		if err != nil {
+			log.Printf("Cannot parse body. err = %v \n", err)
+			sendResponse(w, r, map[string]string{"error": "Invalid request body"}, http.StatusBadRequest)
+			return
+		}
+		vars := mux.Vars(r)
+		id := vars["post_id"]
+		idAsNumber, err := strconv.ParseInt(id, 10, 64)
+
+		if err != nil {
+			sendResponse(w, r, map[string]string{"error": fmt.Sprintf("Invalid ID %s", id)}, http.StatusBadRequest)
+			return
+		}
+		p := &models.Post{
+			ID:      idAsNumber,
+			Title:   req.Title,
+			Author:  username,
+			Content: req.Content,
+		}
+
+		err = a.DB.UpdatePost(p)
+		if err != nil {
+			log.Printf("Cannot save post in DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to update post"}, http.StatusInternalServerError)
+			return
+		}
+
+		resp := mapPostToJson(p)
+		sendResponse(w, r, resp, http.StatusOK)
+	}
 }
 func (a *App) DeletePostHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -209,17 +242,44 @@ func (a *App) GetProfileHandler() http.HandlerFunc {
 }
 
 func (a *App) FollowHandler() http.HandlerFunc {
-	return nil
+	return func(w http.ResponseWriter, r *http.Request) {
+		username, ok := r.Context().Value(UsernameKey).(string)
+		if !ok {
+			sendResponse(w, r, map[string]string{"error": "Unauthorized"}, http.StatusUnauthorized)
+		}
+		vars := mux.Vars(r)
+		followed := vars["username"]
+		f := &models.UserFollow{
+			FollowerUsername: username,
+			FollowedUsername: followed,
+		}
+
+		err := a.DB.CreateFollow(f)
+		if err != nil {
+			log.Printf("Cannot save post in DB. err = %v\n", err)
+			sendResponse(w, r, map[string]string{"error": "Failed to create post"}, http.StatusInternalServerError)
+			return
+		}
+
+		resp := mapFollowToJson(f)
+		sendResponse(w, r, resp, http.StatusOK)
+	}
 }
 
 func (a *App) UnfollowHandler() http.HandlerFunc {
-	return nil
+	return func(w http.ResponseWriter, r *http.Request) {
+
+	}
 }
 
 func (a *App) GetFollowersHandler() http.HandlerFunc {
-	return nil
+	return func(w http.ResponseWriter, r *http.Request) {
+
+	}
 }
 
 func (a *App) GetFollowingHandler() http.HandlerFunc {
-	return nil
+	return func(w http.ResponseWriter, r *http.Request) {
+
+	}
 }
