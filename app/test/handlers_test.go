@@ -15,11 +15,13 @@ type MockDB struct {
 	posts []*models.Post
 	users []*models.User
 	// Control error behavior
-	shouldFailCreate   bool
-	shouldFailGet      bool
-	shouldFailRegister bool
-	shouldFailLogin    bool
-	loginReturnUser    *models.User
+	shouldFailCreate     bool
+	shouldFailGet        bool
+	shouldFailGetByUser  bool
+	shouldFailRegister   bool
+	shouldFailLogin      bool
+	loginReturnUser      *models.User
+	getByUserReturnPosts []*models.Post
 }
 
 func (m *MockDB) Open() error {
@@ -44,6 +46,22 @@ func (m *MockDB) GetPosts() ([]*models.Post, error) {
 		return nil, errors.New("mock get error")
 	}
 	return m.posts, nil
+}
+
+func (m *MockDB) GetPostsByUser(username string) ([]*models.Post, error) {
+	if m.shouldFailGetByUser {
+		return nil, errors.New("mock get by user error")
+	}
+	if m.getByUserReturnPosts != nil {
+		return m.getByUserReturnPosts, nil
+	}
+	var userPosts []*models.Post
+	for _, post := range m.posts {
+		if post.Author == username {
+			userPosts = append(userPosts, post)
+		}
+	}
+	return userPosts, nil
 }
 
 func (m *MockDB) RegisterUser(u *models.User) error {
@@ -108,7 +126,6 @@ func TestCreatePostHandler(t *testing.T) {
 			requestBody: models.PostRequest{
 				Title:   "Test Title",
 				Content: "Test Content",
-				Author:  "Test Author",
 			},
 			mockShouldFail: false,
 			expectedStatus: http.StatusOK,
@@ -124,7 +141,6 @@ func TestCreatePostHandler(t *testing.T) {
 			requestBody: models.PostRequest{
 				Title:   "Test Title",
 				Content: "Test Content",
-				Author:  "Test Author",
 			},
 			mockShouldFail: true,
 			expectedStatus: http.StatusInternalServerError,

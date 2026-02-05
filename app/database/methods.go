@@ -16,13 +16,6 @@ func (d *DB) CreatePost(p *models.Post) error {
 	return err
 }
 
-func (d *DB) GetPosts() ([]*models.Post, error) {
-	var posts []*models.Post
-	err := d.db.Select(&posts, "SELECT * FROM posts")
-
-	return posts, err
-}
-
 func (d *DB) GetPostsByUser(author string) ([]*models.Post, error) {
 	var posts []*models.Post
 	err := d.db.Select(&posts, "SELECT * FROM posts WHERE author = $1", author)

@@ -50,24 +50,7 @@ func (a *App) CreatePostHandler() http.HandlerFunc {
 	}
 }
 
-func (a *App) GetPostsHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		posts, err := a.DB.GetPosts()
-		if err != nil {
-			log.Printf("Cannot get posts, err = %v\n", err)
-			sendResponse(w, r, nil, http.StatusInternalServerError)
-			return
-		}
-
-		var resp = make([]models.JsonPost, len(posts))
-		for idx, post := range posts {
-			resp[idx] = mapPostToJson(post)
-		}
-		sendResponse(w, r, resp, http.StatusOK)
-	}
-}
-
-func (a *App) GetPostsByUserHanlder() http.HandlerFunc {
+func (a *App) GetPostsByUserHandlder() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		username := vars["username"]
@@ -154,5 +137,16 @@ func (a *App) LoginHandler() http.HandlerFunc {
 }
 
 func (a *App) GetProfileHandler() http.HandlerFunc {
+	return nil
+}
+
+func (a *App) GetPostHandlder() http.HandlerFunc {
+	return nil
+}
+
+func (a *App) UpdatePostHandler() http.HandlerFunc {
+	return nil
+}
+func (a *App) DeletePostHandler() http.HandlerFunc {
 	return nil
 }

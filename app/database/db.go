@@ -12,7 +12,6 @@ type PostDB interface {
 	Open() error
 	Close() error
 	CreatePost(p *models.Post) error
-	GetPosts() ([]*models.Post, error)
 	GetPostsByUser(author string) ([]*models.Post, error)
 	RegisterUser(p *models.User) error
 	LoginUser(p *models.User) (*models.User, error)

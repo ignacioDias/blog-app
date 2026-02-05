@@ -22,8 +22,10 @@ func New() *App {
 func (a *App) initRoutes() {
 	a.Router.HandleFunc("/", a.IndexHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/posts", a.AuthMiddleware(a.CreatePostHandler())).Methods("POST")
-	a.Router.HandleFunc("/api/posts", a.GetPostsHandler()).Methods("GET")
-	a.Router.HandleFunc("/api/{username}/posts", a.GetPostsByUserHanlder()).Methods("GET")
+	a.Router.HandleFunc("/api/{username}/posts", a.GetPostsByUserHandlder()).Methods("GET")
+	a.Router.HandleFunc("/api/posts/{post_id}", a.GetPostHandlder()).Methods("GET")
+	a.Router.HandleFunc("/api/posts/{post_id}", a.AuthMiddleware(a.UpdatePostHandler())).Methods("PATCH")
+	a.Router.HandleFunc("/api/posts/{post_id}", a.AuthMiddleware(a.DeletePostHandler())).Methods("DELETE")
 	a.Router.HandleFunc("/api/{username}", a.GetProfileHandler()).Methods("GET")
 	a.Router.HandleFunc("/api/register", a.RegisterUserHandler()).Methods("POST")
 	a.Router.HandleFunc("/api/login", a.LoginHandler()).Methods("POST")
