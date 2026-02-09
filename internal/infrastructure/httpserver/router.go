@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"net/http"
 	"postapi/internal/infrastructure/handlers"
 	"postapi/internal/middleware"
 
@@ -57,6 +58,9 @@ func (r *Router) SetupRoutes() *mux.Router {
 	r.router.HandleFunc("/api/profiles/{username}", r.profileHandler.GetProfileHandler()).Methods("GET")
 	r.router.HandleFunc("/api/profiles/me", r.authMiddleware.AuthMiddleware(r.profileHandler.CreateProfileHandler())).Methods("POST")
 	r.router.HandleFunc("/api/profiles/me", r.authMiddleware.AuthMiddleware(r.profileHandler.UpdateProfileHandler())).Methods("PATCH")
+
+	fs := http.FileServer(http.Dir("./web"))
+	r.router.PathPrefix("/").Handler(fs)
 
 	return r.router
 }
