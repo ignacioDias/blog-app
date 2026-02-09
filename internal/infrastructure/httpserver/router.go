@@ -55,8 +55,8 @@ func (r *Router) SetupRoutes() *mux.Router {
 
 	// Rutas de perfiles
 	r.router.HandleFunc("/api/profiles/{username}", r.profileHandler.GetProfileHandler()).Methods("GET")
-	r.router.HandleFunc("/api/profiles/{username}", r.authMiddleware.AuthMiddleware(r.profileHandler.CreateProfileHandler())).Methods("POST")
-	r.router.HandleFunc("/api/profiles/{username}", r.authMiddleware.AuthMiddleware(r.profileHandler.UpdateProfileHandler())).Methods("PATCH")
+	r.router.HandleFunc("/api/profiles/me", r.authMiddleware.AuthMiddleware(r.profileHandler.CreateProfileHandler())).Methods("POST")
+	r.router.HandleFunc("/api/profiles/me", r.authMiddleware.AuthMiddleware(r.profileHandler.UpdateProfileHandler())).Methods("PATCH")
 
 	return r.router
 }

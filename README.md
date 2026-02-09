@@ -93,8 +93,8 @@ The server will start on `http://localhost:8080`
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | GET | `/api/profiles/{username}` | Get user profile | No |
-| POST | `/api/profiles/{username}` | Create user profile | Yes |
-| PATCH | `/api/profiles/{username}` | Update user profile | Yes |
+| POST | `/api/profiles/me` | Create your profile | Yes |
+| PATCH | `/api/profiles/me` | Update your profile | Yes |
 
 ### Follow/Unfollow
 
