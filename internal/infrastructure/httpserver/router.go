@@ -47,16 +47,16 @@ func (r *Router) SetupRoutes() *mux.Router {
 
 	// Rutas de usuarios
 	r.router.HandleFunc("/api/users/{username}", r.userHandler.GetUserByUsernameHandler()).Methods("GET")
-	r.router.HandleFunc("/api/{username}/posts", r.postHandler.GetPostsByUserHandler()).Methods("GET")
+	r.router.HandleFunc("/api/users/{username}/posts", r.postHandler.GetPostsByUserHandler()).Methods("GET")
 	r.router.HandleFunc("/api/follow/{username}", r.authMiddleware.AuthMiddleware(r.followHandler.FollowHandler())).Methods("POST")
 	r.router.HandleFunc("/api/unfollow/{username}", r.authMiddleware.AuthMiddleware(r.followHandler.UnfollowHandler())).Methods("DELETE")
-	r.router.HandleFunc("/api/{username}/followers", r.followHandler.GetFollowersHandler()).Methods("GET")
-	r.router.HandleFunc("/api/{username}/following", r.followHandler.GetFollowingHandler()).Methods("GET")
+	r.router.HandleFunc("/api/users/{username}/followers", r.followHandler.GetFollowersHandler()).Methods("GET")
+	r.router.HandleFunc("/api/users/{username}/following", r.followHandler.GetFollowingHandler()).Methods("GET")
 
 	// Rutas de perfiles
-	r.router.HandleFunc("/api/{username}", r.profileHandler.GetProfileHandler()).Methods("GET")
-	r.router.HandleFunc("/api/{username}", r.authMiddleware.AuthMiddleware(r.profileHandler.CreateProfileHandler())).Methods("POST")
-	r.router.HandleFunc("/api/{username}", r.authMiddleware.AuthMiddleware(r.profileHandler.UpdateProfileHandler())).Methods("PATCH")
+	r.router.HandleFunc("/api/profiles/{username}", r.profileHandler.GetProfileHandler()).Methods("GET")
+	r.router.HandleFunc("/api/profiles/{username}", r.authMiddleware.AuthMiddleware(r.profileHandler.CreateProfileHandler())).Methods("POST")
+	r.router.HandleFunc("/api/profiles/{username}", r.authMiddleware.AuthMiddleware(r.profileHandler.UpdateProfileHandler())).Methods("PATCH")
 
 	return r.router
 }

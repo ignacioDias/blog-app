@@ -75,6 +75,9 @@ The server will start on `http://localhost:8080`
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | GET | `/api/users/{username}` | Get user by username | No |
+| GET | `/api/users/{username}/posts` | Get all posts by a user | No |
+| GET | `/api/users/{username}/followers` | Get user's followers | No |
+| GET | `/api/users/{username}/following` | Get users being followed | No |
 
 ### Posts
 
@@ -84,15 +87,14 @@ The server will start on `http://localhost:8080`
 | GET | `/api/posts/{post_id}` | Get a specific post | No |
 | PATCH | `/api/posts/{post_id}` | Update a post | Yes |
 | DELETE | `/api/posts/{post_id}` | Delete a post | Yes |
-| GET | `/api/{username}/posts` | Get all posts by a user | No |
 
 ### Profiles
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| GET | `/api/{username}` | Get user profile | No |
-| POST | `/api/{username}` | Create user profile | Yes |
-| PATCH | `/api/{username}` | Update user profile | Yes |
+| GET | `/api/profiles/{username}` | Get user profile | No |
+| POST | `/api/profiles/{username}` | Create user profile | Yes |
+| PATCH | `/api/profiles/{username}` | Update user profile | Yes |
 
 ### Follow/Unfollow
 
@@ -100,8 +102,6 @@ The server will start on `http://localhost:8080`
 |--------|----------|-------------|---------------|
 | POST | `/api/follow/{username}` | Follow a user | Yes |
 | DELETE | `/api/unfollow/{username}` | Unfollow a user | Yes |
-| GET | `/api/{username}/followers` | Get user's followers | No |
-| GET | `/api/{username}/following` | Get users being followed | No |
 
 ## Authentication
 
